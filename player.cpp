@@ -9,11 +9,10 @@ Player::Player(Side side) {
     // Will be set to true in test_minimax.cpp.
     testingMinimax = false;
 
-    /*
-     * TODO: Do any initialization you need to do here (setting up the board,
-     * precalculating things, etc.) However, remember that you will only have
-     * 30 seconds.
-     */
+    set_stone(board, 3, 3, WHITE);
+    set_stone(board, 3, 4, BLACK);
+    set_stone(board, 4, 3, BLACK);
+    set_stone(board, 4, 4, WHITE);
 }
 
 /*

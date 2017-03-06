@@ -1,180 +1,114 @@
 #include "board.hpp"
 
-/*
- * Make a standard 8x8 othello board and initialize it to the standard setup.
- */
-Board::Board() {
-    taken.set(3 + 8 * 3);
-    taken.set(3 + 8 * 4);
-    taken.set(4 + 8 * 3);
-    taken.set(4 + 8 * 4);
-    black.set(4 + 8 * 3);
-    black.set(3 + 8 * 4);
-}
 
-/*
- * Destructor for the board.
- */
-Board::~Board() {
-}
+inline uint64_t downward_moves(
+    uint64_t this_side, uint64_t other_side, uint64_t edge_spaces,
+    uint64_t empty_spaces, uint8_t shift_amount
+    )
+{
+    // Ignore the other side's stones that lie on the edge.
+    other_side &= edge_spaces;
 
-/*
- * Returns a copy of this board.
- */
-Board *Board::copy() {
-    Board *newBoard = new Board();
-    newBoard->black = black;
-    newBoard->taken = taken;
-    return newBoard;
-}
+    // As an example, an edge_spaces value of 0xFEFEFEFEFEFEFE00 would represent
+    // the following board:
+    //
+    // 00000000
+    // 01111111
+    // 01111111
+    // 01111111
+    // 01111111
+    // 01111111
+    // 01111111
+    // 01111111
 
-bool Board::occupied(int x, int y) {
-    return taken[x + 8*y];
-}
+    // Set this_side to be all of this side's stones that, when shifted downward
+    // by the specified amount, overlap with the other side's stones.
+    this_side = (this_side << shift_amount) & other_side;
 
-bool Board::get(Side side, int x, int y) {
-    return occupied(x, y) && (black[x + 8*y] == (side == BLACK));
-}
+    // Shift this side's stones downward 5 more times, and find which ones
+    // overlap with the other side's stones. Keep track of all the overlapping
+    // stones with bitwise-OR.
+    this_side |= (this_side << shift_amount) & other_side;
+    this_side |= (this_side << shift_amount) & other_side;
+    this_side |= (this_side << shift_amount) & other_side;
+    this_side |= (this_side << shift_amount) & other_side;
+    this_side |= (this_side << shift_amount) & other_side;
 
-void Board::set(Side side, int x, int y) {
-    taken.set(x + 8*y);
-    black.set(x + 8*y, side == BLACK);
-}
-
-bool Board::onBoard(int x, int y) {
-    return(0 <= x && x < 8 && 0 <= y && y < 8);
+    // Shift all the overlapping stones downward once more, and find which ones
+    // fall on empty spaces.
+    return (this_side << shift_amount) & empty_spaces;
 }
 
 
-/*
- * Returns true if the game is finished; false otherwise. The game is finished
- * if neither side has a legal move.
- */
-bool Board::isDone() {
-    return !(hasMoves(BLACK) || hasMoves(WHITE));
+inline uint64_t upward_moves(
+    uint64_t this_side, uint64_t other_side, uint64_t empty_spaces,
+    uint64_t edge_spaces, uint8_t shift_amount
+    )
+{
+    other_side &= edge_spaces;
+
+    this_side = (this_side >> shift_amount) & other_side;
+
+    this_side |= (this_side >> shift_amount) & other_side;
+    this_side |= (this_side >> shift_amount) & other_side;
+    this_side |= (this_side >> shift_amount) & other_side;
+    this_side |= (this_side >> shift_amount) & other_side;
+    this_side |= (this_side >> shift_amount) & other_side;
+
+    return (this_side >> shift_amount) & empty_spaces;
 }
 
-/*
- * Returns true if there are legal moves for the given side.
- */
-bool Board::hasMoves(Side side) {
-    for (int i = 0; i < 8; i++) {
-        for (int j = 0; j < 8; j++) {
-            Move move(i, j);
-            if (checkMove(&move, side)) return true;
-        }
-    }
-    return false;
+
+inline uint64_t all_moves(uint64_t this_side, uint64_t other_side)
+{
+    uint64_t empty_spaces = !(this_side | other_side);
+
+    return
+    // right
+    downward_moves(this_side, other_side, empty_spaces, 0x7F7F7F7F7F7F7F7F, 1) |
+    // down-left
+    downward_moves(this_side, other_side, empty_spaces, 0x00FEFEFEFEFEFEFE, 7) |
+    // down
+    downward_moves(this_side, other_side, empty_spaces, 0x00FFFFFFFFFFFFFF, 8) |
+    // down-right
+    downward_moves(this_side, other_side, empty_spaces, 0x007F7F7F7F7F7F7F, 9) |
+    // left
+    upward_moves  (this_side, other_side, empty_spaces, 0xFEFEFEFEFEFEFEFE, 1) |
+    // up-right
+    upward_moves  (this_side, other_side, empty_spaces, 0x7F7F7F7F7F7F7F00, 7) |
+    // up
+    upward_moves  (this_side, other_side, empty_spaces, 0xFFFFFFFFFFFFFF00, 8) |
+    // up-left
+    upward_moves  (this_side, other_side, empty_spaces, 0xFEFEFEFEFEFEFE00, 9);
 }
 
-/*
- * Returns true if a move is legal for the given side; false otherwise.
- */
-bool Board::checkMove(Move *m, Side side) {
-    // Passing is only legal if you have no moves.
-    if (m == nullptr) return !hasMoves(side);
 
-    int X = m->getX();
-    int Y = m->getY();
+// <--------------------------------------------------------------------------->
 
-    // Make sure the square hasn't already been taken.
-    if (occupied(X, Y)) return false;
 
-    Side other = (side == BLACK) ? WHITE : BLACK;
-    for (int dx = -1; dx <= 1; dx++) {
-        for (int dy = -1; dy <= 1; dy++) {
-            if (dy == 0 && dx == 0) continue;
-
-            // Is there a capture in that direction?
-            int x = X + dx;
-            int y = Y + dy;
-            if (onBoard(x, y) && get(other, x, y)) {
-                do {
-                    x += dx;
-                    y += dy;
-                } while (onBoard(x, y) && get(other, x, y));
-
-                if (onBoard(x, y) && get(side, x, y)) return true;
-            }
-        }
-    }
-    return false;
+inline uint64_t num_ones(uint64_t x)
+{
+    // According to Wikipedia, this is the Hamming Weight algorithm which uses
+    // the fewest arithmetic operations: 1 multiplication and 11 additions
+    // (addition, subtraction, bitwise-AND, and bitshift each require 1
+    // processor cycle, while multiplication can require more than 1 cycle).
+    x -= ((x >> 1) & 0x5555555555555555);
+    x = (x & 0x3333333333333333) + ((x >> 2) & 0x3333333333333333);
+    return (((x + (x >> 4)) & 0xF0F0F0F0F0F0F0F) * 0x101010101010101) >> 56;
 }
 
-/*
- * Modifies the board to reflect the specified move.
- */
-void Board::doMove(Move *m, Side side) {
-    // A nullptr move means pass.
-    if (m == nullptr) return;
 
-    // Ignore if move is invalid.
-    if (!checkMove(m, side)) return;
+// <--------------------------------------------------------------------------->
 
-    int X = m->getX();
-    int Y = m->getY();
-    Side other = (side == BLACK) ? WHITE : BLACK;
-    for (int dx = -1; dx <= 1; dx++) {
-        for (int dy = -1; dy <= 1; dy++) {
-            if (dy == 0 && dx == 0) continue;
 
-            int x = X;
-            int y = Y;
-            do {
-                x += dx;
-                y += dy;
-            } while (onBoard(x, y) && get(other, x, y));
+void set_board(char *data, Board &board)
+{
+    for (int i = 0; i < 64; i++)
+    {
+        if (data[i] == 'w')
+            set_stone(board, i / 8, i % 8, WHITE);
 
-            if (onBoard(x, y) && get(side, x, y)) {
-                x = X;
-                y = Y;
-                x += dx;
-                y += dy;
-                while (onBoard(x, y) && get(other, x, y)) {
-                    set(side, x, y);
-                    x += dx;
-                    y += dy;
-                }
-            }
-        }
-    }
-    set(side, X, Y);
-}
-
-/*
- * Current count of given side's stones.
- */
-int Board::count(Side side) {
-    return (side == BLACK) ? countBlack() : countWhite();
-}
-
-/*
- * Current count of black stones.
- */
-int Board::countBlack() {
-    return black.count();
-}
-
-/*
- * Current count of white stones.
- */
-int Board::countWhite() {
-    return taken.count() - black.count();
-}
-
-/*
- * Sets the board state given an 8x8 char array where 'w' indicates a white
- * piece and 'b' indicates a black piece. Mainly for testing purposes.
- */
-void Board::setBoard(char data[]) {
-    taken.reset();
-    black.reset();
-    for (int i = 0; i < 64; i++) {
-        if (data[i] == 'b') {
-            taken.set(i);
-            black.set(i);
-        } if (data[i] == 'w') {
-            taken.set(i);
-        }
+        else if (data[i] == 'b')
+            set_stone(board, i / 8, i % 8, BLACK);
     }
 }
