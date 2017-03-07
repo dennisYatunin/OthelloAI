@@ -46,6 +46,7 @@ Move *Player::doMove(Move *opponentsMove, int msLeft) {
     size_t best_move = 1;
 
     //print_board(board_stack->bits[WHITE], board_stack->bits[BLACK]);
+    //cerr << "(" << (long)(board_stack->bits[WHITE]) << ", " << (long)(board_stack->bits[BLACK]) << ")" << endl;
     //for (size_t i = 1; i <= moves[0]; i++)
     //{
     //    cerr << "move " << i << " is " << moves[i] / 8 << moves[i] % 8 << endl;

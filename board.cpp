@@ -103,21 +103,21 @@ uint64_t all_flips(uint64_t this_side, uint64_t other_side, uint64_t new_stone)
 
     return
     // right
-    downward_flips(this_side & L_EDGE, other_side, new_stone & R_EDGE, 1) |
+    downward_flips(this_side & L_EDGE, other_side & R_EDGE, new_stone & R_EDGE, 1) |
     // down-left
-    downward_flips(this_side & R_EDGE, other_side, new_stone & L_EDGE, 7) |
+    downward_flips(this_side & R_EDGE, other_side & L_EDGE, new_stone & L_EDGE, 7) |
     // down
-    downward_flips(this_side,          other_side, new_stone,          8) |
+    downward_flips(this_side,          other_side,          new_stone,          8) |
     // down-right
-    downward_flips(this_side & L_EDGE, other_side, new_stone & R_EDGE, 9) |
+    downward_flips(this_side & L_EDGE, other_side & R_EDGE, new_stone & R_EDGE, 9) |
     // left
-    upward_flips  (this_side & R_EDGE, other_side, new_stone & L_EDGE, 1) |
+    upward_flips  (this_side & R_EDGE, other_side & L_EDGE, new_stone & L_EDGE, 1) |
     // up-right
-    upward_flips  (this_side & L_EDGE, other_side, new_stone & R_EDGE, 7) |
+    upward_flips  (this_side & L_EDGE, other_side & R_EDGE, new_stone & R_EDGE, 7) |
     // up
-    upward_flips  (this_side,          other_side, new_stone,          8) |
+    upward_flips  (this_side,          other_side,          new_stone,          8) |
     // up-left
-    upward_flips  (this_side & R_EDGE, other_side, new_stone & L_EDGE, 9);
+    upward_flips  (this_side & R_EDGE, other_side & L_EDGE, new_stone & L_EDGE, 9);
 }
 
 void add_stone(Board board, Side side, uint8_t row, uint8_t col)
@@ -202,21 +202,21 @@ uint64_t all_moves(uint64_t this_side, uint64_t other_side)
 
     return
     // right
-    downward_moves(this_side, other_side & R_EDGE, empty_spaces, 1) |
+    downward_moves(this_side & R_EDGE, other_side & R_EDGE, empty_spaces, 1) |
     // down-left
-    downward_moves(this_side, other_side & L_EDGE, empty_spaces, 7) |
+    downward_moves(this_side & L_EDGE, other_side & L_EDGE, empty_spaces, 7) |
     // down
-    downward_moves(this_side, other_side,          empty_spaces, 8) |
+    downward_moves(this_side,          other_side,          empty_spaces, 8) |
     // down-right
-    downward_moves(this_side, other_side & R_EDGE, empty_spaces, 9) |
+    downward_moves(this_side & R_EDGE, other_side & R_EDGE, empty_spaces, 9) |
     // left
-    upward_moves  (this_side, other_side & L_EDGE, empty_spaces, 1) |
+    upward_moves  (this_side & L_EDGE, other_side & L_EDGE, empty_spaces, 1) |
     // up-right
-    upward_moves  (this_side, other_side & R_EDGE, empty_spaces, 7) |
+    upward_moves  (this_side & R_EDGE, other_side & R_EDGE, empty_spaces, 7) |
     // up
-    upward_moves  (this_side, other_side,          empty_spaces, 8) |
+    upward_moves  (this_side,          other_side,          empty_spaces, 8) |
     // up-left
-    upward_moves  (this_side, other_side & L_EDGE, empty_spaces, 9);
+    upward_moves  (this_side & L_EDGE, other_side & L_EDGE, empty_spaces, 9);
 }
 
 // An array for finding the index of the least significant bit in a 64-bit

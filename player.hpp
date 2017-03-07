@@ -12,8 +12,8 @@ class Player {
 
 private:
     Side side;
-    struct board_struct board_stack[MAXDEPTH + 50];
-    uint8_t move_stack[MAXDEPTH + 10000][64];
+    struct board_struct board_stack[MAXDEPTH + 2];
+    uint8_t move_stack[MAXDEPTH + 2][64];
 
 public:
     Player(Side side);
