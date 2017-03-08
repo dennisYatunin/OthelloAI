@@ -6,7 +6,7 @@
 #include "board.hpp"
 using namespace std;
 
-#define MAXDEPTH 12
+#define MAXDEPTH 6
 
 class Player {
 

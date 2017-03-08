@@ -30,28 +30,28 @@ uint8_t num_ones(uint64_t x)
 // specified by shift_amount when this side places a new stone in the given
 // position. The direction must be "downward"; i.e., right, down-left, down, or
 // down-right.
-uint64_t downward_flips(
-    uint64_t this_side, uint64_t other_side, uint64_t new_stone,
+inline uint64_t downward_flips(
+    uint64_t this_side, uint64_t other_side, uint64_t stone,
     uint8_t shift_amount
     )
 {
-    // Set new_stone to be the other side's stone that overlaps with the new
+    // Set stone to be the other side's stone that overlaps with the new
     // stone when the new stone is shifted downward by the specified amount.
-    new_stone = (new_stone << shift_amount) & other_side;
+    stone = (stone << shift_amount) & other_side;
 
     // Shift the new stone downward 5 more times, and find which of the other
     // side's stones overlap with it. Keep track of all the overlapping stones
     // with bitwise-OR.
-    new_stone |= (new_stone << shift_amount) & other_side;
-    new_stone |= (new_stone << shift_amount) & other_side;
-    new_stone |= (new_stone << shift_amount) & other_side;
-    new_stone |= (new_stone << shift_amount) & other_side;
-    new_stone |= (new_stone << shift_amount) & other_side;
+    stone |= (stone << shift_amount) & other_side;
+    stone |= (stone << shift_amount) & other_side;
+    stone |= (stone << shift_amount) & other_side;
+    stone |= (stone << shift_amount) & other_side;
+    stone |= (stone << shift_amount) & other_side;
 
     // Check whether there is a stone from this side which, when moved in the
     // opposite direction, overlaps with the last previously-found stone.
-    if ((this_side >> shift_amount) & new_stone)
-        return new_stone;
+    if ((this_side >> shift_amount) & stone)
+        return stone;
 
     return 0;
 }
@@ -60,31 +60,33 @@ uint64_t downward_flips(
 // specified by shift_amount when this side places a new stone in the given
 // position. The direction must be "upward"; i.e., left, up-right, up, or
 // up-left.
-uint64_t upward_flips(
-    uint64_t this_side, uint64_t other_side, uint64_t new_stone,
+inline uint64_t upward_flips(
+    uint64_t this_side, uint64_t other_side, uint64_t stone,
     uint8_t shift_amount
     )
 {
     // Identical algorithm to downward_flips(), but with left bitshift instead
     // of right bitshift, and vice-versa.
 
-    new_stone = (new_stone >> shift_amount) & other_side;
+    stone = (stone >> shift_amount) & other_side;
 
-    new_stone |= (new_stone >> shift_amount) & other_side;
-    new_stone |= (new_stone >> shift_amount) & other_side;
-    new_stone |= (new_stone >> shift_amount) & other_side;
-    new_stone |= (new_stone >> shift_amount) & other_side;
-    new_stone |= (new_stone >> shift_amount) & other_side;
+    stone |= (stone >> shift_amount) & other_side;
+    stone |= (stone >> shift_amount) & other_side;
+    stone |= (stone >> shift_amount) & other_side;
+    stone |= (stone >> shift_amount) & other_side;
+    stone |= (stone >> shift_amount) & other_side;
 
-    if ((this_side << shift_amount) & new_stone)
-        return new_stone;
+    if ((this_side << shift_amount) & stone)
+        return stone;
 
     return 0;
 }
 
 // Finds all the other side's stones that need to be flipped when this side
 // places a new stone in the given position.
-uint64_t all_flips(uint64_t this_side, uint64_t other_side, uint64_t new_stone)
+inline uint64_t all_flips(
+    uint64_t this_side, uint64_t other_side, uint64_t stone
+    )
 {
     /*
      * Any stones that lie on the left edge should not be moved to the left, and
@@ -103,30 +105,30 @@ uint64_t all_flips(uint64_t this_side, uint64_t other_side, uint64_t new_stone)
 
     return
     // right
-    downward_flips(this_side & L_EDGE, other_side & R_EDGE, new_stone & R_EDGE, 1) |
+    downward_flips(this_side & L_EDGE, other_side & R_EDGE, stone & R_EDGE, 1) |
     // down-left
-    downward_flips(this_side & R_EDGE, other_side & L_EDGE, new_stone & L_EDGE, 7) |
+    downward_flips(this_side & R_EDGE, other_side & L_EDGE, stone & L_EDGE, 7) |
     // down
-    downward_flips(this_side,          other_side,          new_stone,          8) |
+    downward_flips(this_side,          other_side,          stone,          8) |
     // down-right
-    downward_flips(this_side & L_EDGE, other_side & R_EDGE, new_stone & R_EDGE, 9) |
+    downward_flips(this_side & L_EDGE, other_side & R_EDGE, stone & R_EDGE, 9) |
     // left
-    upward_flips  (this_side & R_EDGE, other_side & L_EDGE, new_stone & L_EDGE, 1) |
+    upward_flips  (this_side & R_EDGE, other_side & L_EDGE, stone & L_EDGE, 1) |
     // up-right
-    upward_flips  (this_side & L_EDGE, other_side & R_EDGE, new_stone & R_EDGE, 7) |
+    upward_flips  (this_side & L_EDGE, other_side & R_EDGE, stone & R_EDGE, 7) |
     // up
-    upward_flips  (this_side,          other_side,          new_stone,          8) |
+    upward_flips  (this_side,          other_side,          stone,          8) |
     // up-left
-    upward_flips  (this_side & R_EDGE, other_side & L_EDGE, new_stone & L_EDGE, 9);
+    upward_flips  (this_side & R_EDGE, other_side & L_EDGE, stone & L_EDGE, 9);
 }
 
 void add_stone(Board board, Side side, uint8_t row, uint8_t col)
 {
-    uint64_t new_stone = new_stone(row, col);
+    uint64_t stone = new_stone(row, col);
     uint64_t flipped_stones =
-    all_flips(board->bits[side], board->bits[!side], new_stone);
+    all_flips(board->bits[side], board->bits[!side], stone);
 
-    board->bits[side] |= new_stone | flipped_stones;
+    board->bits[side] |= stone | flipped_stones;
     board->bits[!side] &= ~flipped_stones;
 }
 
@@ -134,11 +136,11 @@ void add_stone_copy(
     Board board, Side side, uint8_t row, uint8_t col, Board destination
     )
 {
-    uint64_t new_stone = new_stone(row, col);
+    uint64_t stone = new_stone(row, col);
     uint64_t flipped_stones =
-    all_flips(board->bits[side], board->bits[!side], new_stone);
+    all_flips(board->bits[side], board->bits[!side], stone);
 
-    destination->bits[side] = board->bits[side] | new_stone | flipped_stones;
+    destination->bits[side] = board->bits[side] | stone | flipped_stones;
     destination->bits[!side] = board->bits[!side] & ~flipped_stones;
 }
 
@@ -149,7 +151,7 @@ void add_stone_copy(
 // Finds the moves available to this side in the direction specified by
 // shift_amount. The direction must be "downward"; i.e., right, down-left,
 // down, or down-right.
-uint64_t downward_moves(
+inline uint64_t downward_moves(
     uint64_t this_side, uint64_t other_side, uint64_t empty_spaces,
     uint8_t shift_amount
     )
@@ -175,7 +177,7 @@ uint64_t downward_moves(
 // Finds the moves available to this side in the direction specified by
 // shift_amount. The direction must be "upward"; i.e., left, up-right, up, or
 // up-left.
-uint64_t upward_moves(
+inline uint64_t upward_moves(
     uint64_t this_side, uint64_t other_side, uint64_t empty_spaces,
     uint8_t shift_amount
     )
@@ -196,7 +198,7 @@ uint64_t upward_moves(
 
 // Finds all moves available to this side, given the locations of all the stones
 // that belong to either side.
-uint64_t all_moves(uint64_t this_side, uint64_t other_side)
+inline uint64_t all_moves(uint64_t this_side, uint64_t other_side)
 {
     uint64_t empty_spaces = ~(this_side | other_side);
 
@@ -219,6 +221,11 @@ uint64_t all_moves(uint64_t this_side, uint64_t other_side)
     upward_moves  (this_side & L_EDGE, other_side & L_EDGE, empty_spaces, 9);
 }
 
+uint8_t num_moves(Board board, Side side)
+{
+    return num_ones(all_moves(board->bits[side], board->bits[!side]));
+}
+
 // An array for finding the index of the least significant bit in a 64-bit
 // integer using the DeBruijn sequence 0x03f79d71b4cb0a89.
 const uint8_t DeBruijnIndices64Bit[] = {
@@ -235,7 +242,7 @@ const uint8_t DeBruijnIndices64Bit[] = {
 // Creates an array whose first element is the number of 1's in bits and whose
 // remaining elements are the indices of all the 1's (with the least-significant
 // 1 having the smallest index).
-void get_indices(uint64_t bits, uint8_t *array)
+inline void get_indices(uint64_t bits, uint8_t *array)
 {
     // Get the number of 1's in bits.
     uint8_t num_indices = num_ones(bits);

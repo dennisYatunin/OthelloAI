@@ -148,6 +148,53 @@ int32_t Player::negascout(
 
 int32_t Player::heuristic(size_t stack_pos)
 {
-    return num_stones(board_stack + stack_pos, side) -
-    num_stones(board_stack + stack_pos, !side);
+    Board board = board_stack + stack_pos;
+
+    uint8_t num_this_stones = num_stones(board, side),
+    num_other_stones = num_stones(board, !side);
+
+    if (is_full(board))
+        return 1000 *
+        (num_this_stones - num_other_stones) /
+        (num_this_stones + num_other_stones);
+
+    uint8_t num_this_moves = num_moves(board, side),
+    num_other_moves = num_moves(board, !side),
+    num_this_cat1 = num_cat1(board, side),
+    num_other_cat1 = num_cat1(board, !side),
+    num_this_cat2 = num_cat2(board, side),
+    num_other_cat2 = num_cat2(board, !side),
+    num_this_cat3 = num_cat3(board, side),
+    num_other_cat3 = num_cat3(board, !side);
+
+    int32_t coin_parity, mobility, cat1, cat2, cat3;
+
+    coin_parity = 100 *
+    (num_this_stones - num_other_stones) / (num_this_stones + num_other_stones);
+
+    if (num_this_moves + num_other_moves == 0)
+        mobility = 0;
+    else
+        mobility = 1000 *
+        (num_this_moves - num_other_moves) / (num_this_moves + num_other_moves);
+
+    if (num_this_cat1 + num_other_cat1 == 0)
+        cat1 = 0;
+    else
+        cat1 = 1000 *
+        (num_this_cat1 - num_other_cat1) / (num_this_cat1 + num_other_cat1);
+
+    if (num_this_cat2 + num_other_cat2 == 0)
+        cat2 = 0;
+    else
+        cat2 = -500 *
+        (num_this_cat2 - num_other_cat2) / (num_this_cat2 + num_other_cat2);
+
+    if (num_this_cat3 + num_other_cat3 == 0)
+        cat3 = 0;
+    else
+        cat3 = 250 *
+        (num_this_cat3 - num_other_cat3) / (num_this_cat3 + num_other_cat3);
+
+    return coin_parity + mobility + cat1 + cat2 + cat3;
 }

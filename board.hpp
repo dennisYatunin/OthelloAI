@@ -91,6 +91,67 @@ uint8_t num_ones(uint64_t x);
 // <--------------------------------------------------------------------------->
 
 
+/*
+ * Category 1:
+ *
+ * 10000001
+ * 00000000
+ * 00000000
+ * 00000000
+ * 00000000
+ * 00000000
+ * 00000000
+ * 10000001
+ */
+#define CAT1 0x8100000000000081
+
+/*
+ * Category 2:
+ *
+ * 01000010
+ * 11000011
+ * 00000000
+ * 00000000
+ * 00000000
+ * 00000000
+ * 11000011
+ * 01000010
+ */
+#define CAT2 0x42C300000000C342
+
+/*
+ * Category 3:
+ *
+ * 00100100
+ * 00100100
+ * 11100111
+ * 00000000
+ * 00000000
+ * 11100111
+ * 00100100
+ * 00100100
+ */
+#define CAT3 0x2424E70000E72424
+
+
+// Returns the number of stones that belong to the specified side which are
+// in Category 1 (corner positions).
+#define num_cat1(board, side) num_ones((board)->bits[(side)] & CAT1)
+
+
+// Returns the number of stones that belong to the specified side which are
+// in Category 2 (adjacent to corner positions).
+#define num_cat2(board, side) num_ones((board)->bits[(side)] & CAT2)
+
+
+// Returns the number of stones that belong to the specified side which are
+// in Category 3 (adjacent to positions adjacent to corner positions).
+#define num_cat3(board, side) num_ones((board)->bits[(side)] & CAT3)
+
+
+// <--------------------------------------------------------------------------->
+
+
 // Modifies the board so that it contains a stone that belongs to the specified
 // side at the given position. Flips the other side's stones appropriately.
 void add_stone(Board board, Side side, uint8_t row, uint8_t col);
@@ -105,6 +166,9 @@ void add_stone_copy(
 
 // <--------------------------------------------------------------------------->
 
+
+// Returns the number of moves available to the specified side.
+uint8_t num_moves(Board board, Side side);
 
 // Places all the moves available to the specified side in the specified array,
 // setting the first element of the array to the number of moves available.
