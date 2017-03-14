@@ -7,17 +7,38 @@
  * within 30 seconds.
  */
 Player::Player(Side side) {
-    // Will be set to true in test_minimax.cpp.
-    testingMinimax = false;
-
-    set_bits(board_stack, 0x0000001008000000, 0x0000000810000000);
     this->side = side;
+
+    board = board_stack;
+    movelist = movelist_stack;
+
+    set_bits(board, 0x0000001008000000, 0x0000000810000000);
+
+    table_size = MAX_TABLE_SIZE;
+    bool unsuccessful_alloc = true;
+
+    while (unsuccessful_alloc)
+    {
+        try {
+            table = new struct table_entry_struct[table_size];
+            unsuccessful_alloc = false;
+        }
+
+        catch (const bad_alloc&) {
+            table_size >>= 2;
+        }
+    }
 }
 
 /*
  * Destructor for the player.
  */
 Player::~Player() {
+    for (size_t i = 0; i < table_size; i++)
+        if (table[i].next)
+            delete table[i].next;
+
+    delete[] table;
 }
 
 /*
@@ -35,166 +56,228 @@ Player::~Player() {
  */
 Move *Player::doMove(Move *opponentsMove, int msLeft) {
     if (opponentsMove)
-        add_stone(board_stack, !side, opponentsMove->y, opponentsMove->x);
+        add_stone(board, !side, new_stone(opponentsMove->x, opponentsMove->y));
 
-    get_moves(board_stack, side, &(move_stack[0][0]));
-    uint8_t *moves = &(move_stack[0][0]);
+    get_moves(board, side, movelist);
 
-    if (moves[0] == 0)
+    if (movelist->num_moves == 0)
         return nullptr;
 
-    size_t best_move = 1;
+    TableEntry entry = get_entry(board, table, table_size);
+    if (entry->in_use)
+        sort_moves(movelist, entry);
 
-    //print_board(board_stack->bits[WHITE], board_stack->bits[BLACK]);
-    //cerr << "(" << (long)(board_stack->bits[WHITE]) << ", " << (long)(board_stack->bits[BLACK]) << ")" << endl;
-    //for (size_t i = 1; i <= moves[0]; i++)
-    //{
-    //    cerr << "move " << i << " is " << moves[i] / 8 << moves[i] % 8 << endl;
-    //}
+    uint64_t best_move = 0,
+    move;
 
-    add_stone_copy(
-        board_stack, side, moves[1] / 8, moves[1] % 8, board_stack + 1
-        );
-    int32_t best_move_score = negascout(1, MAXDEPTH, INT32_MIN, INT32_MAX, 1);
-    for (size_t i = 2; i <= moves[0]; i++)
+    int32_t alpha = INT32_MIN,
+    move_score;
+
+    for (size_t i = 0; i < movelist->num_moves; i++)
     {
-        add_stone_copy(
-            board_stack, side, moves[i] / 8, moves[i] % 8, board_stack + 1
-            );
-        int32_t move_score = negascout(1, MAXDEPTH, INT32_MIN, INT32_MAX, 1);
+        move = get_move(movelist, i);
+        add_stone_copy(board, side, move);
 
-        if (move_score > best_move_score)
-        {
-            best_move = i;
-            best_move_score = move_score;
-        }
-    }
-
-    //for (size_t i = 1; i <= moves[0]; i++)
-    //{
-    //    cerr << "move " << i << " is now " << moves[i] / 8 << moves[i] % 8 << endl;
-    //}
-    //cerr << "best move is " << best_move << endl;
-
-    add_stone(board_stack, side, moves[best_move] / 8, moves[best_move] % 8);
-    Move *result = new Move(moves[best_move] % 8, moves[best_move] / 8);
-
-    return result;
-}
-
-int32_t Player::negascout(
-    size_t stack_pos, uint8_t depth, int32_t alpha, int32_t beta,
-    int8_t multiplier
-    )
-{
-    if (depth == 0)
-        return multiplier * heuristic(stack_pos);
-
-    Side whose_move = (multiplier == 1) ? side : !side;
-    get_moves(board_stack + stack_pos, whose_move, &(move_stack[stack_pos][0]));
-    uint8_t *moves = &(move_stack[stack_pos][0]);
-
-    if (moves[0] == 0)
-        return multiplier * heuristic(stack_pos);
-
-    // Run negascout for the first move with a full-size search interval.
-    add_stone_copy(
-        board_stack + stack_pos, side, moves[1] / 8, moves[1] % 8,
-        board_stack + stack_pos + 1
-        );
-    int32_t move_score = -negascout(
-        stack_pos + 1, depth - 1, -beta, -alpha, -multiplier
-        );
-
-    if (move_score > alpha)
-    {
-        alpha = move_score;
-
-        if (alpha >= beta)
-            return alpha;
-    }
-
-    for (size_t i = 2; i <= moves[0]; i++)
-    {
-        // Run negascout for subsequent moves with an empty search interval.
-        add_stone_copy(
-            board_stack + stack_pos, side, moves[i] / 8, moves[i] % 8,
-            board_stack + stack_pos + 1
-            );
-        move_score = -negascout(
-            stack_pos + 1, depth - 1, -alpha - 1, -alpha, -multiplier
-            );
-
-        // If the move score with an empty search interval was out of bounds,
-        // run negascout again with a full-size search interval.
-        if (move_score > alpha && move_score < beta)
+        // Run negascout for the first move with a full search interval.
+        if (i == 0)
             move_score = -negascout(
-                stack_pos + 1, depth - 1, -beta, -move_score, -multiplier
+                board + 1, movelist + 1, !side,
+                INT32_MIN, INT32_MAX, MAXDEPTH
                 );
+
+        // Run negascout for subsequent moves with an empty search interval. If
+        // the move score with an empty search interval is above the max-
+        // player's highest score and below the min-player's lowest score, rerun
+        // negascout with a full search interval.
+        else
+        {
+            move_score = -negascout(
+                board + 1, movelist + 1, !side,
+                -alpha - 1, -alpha, MAXDEPTH
+                );
+
+            if (move_score > alpha)
+                move_score = -negascout(
+                    board + 1, movelist + 1, !side,
+                    INT32_MIN, -move_score, MAXDEPTH
+                    );
+        }
 
         if (move_score > alpha)
         {
             alpha = move_score;
+            best_move = move;
+        }
+    }
+
+    add_stone(board, side, best_move);
+    uint8_t best_move_position = stone_position(best_move);
+    return new Move(best_move_position % 8, best_move_position / 8);
+}
+
+int32_t Player::negascout(
+    Board cur_board, Movelist cur_movelist, Side cur_side,
+    int32_t alpha, int32_t beta, uint8_t depth
+    )
+{
+    TableEntry entry = get_entry(cur_board, table, table_size);
+    if (entry->in_use && entry->depth == depth)
+        return entry->score;
+
+    if (depth == 0)
+        return (entry->score = (cur_side == side) ?
+        heuristic(cur_board) : -heuristic(cur_board));
+
+    get_moves(cur_board, cur_side, cur_movelist);
+
+    if (cur_movelist->num_moves == 0)
+        return (entry->score = (cur_side == side) ?
+        heuristic(cur_board) : -heuristic(cur_board));
+
+    if (entry->in_use)
+        sort_moves(movelist, entry);
+
+    uint64_t best_move = 0, second_best_move = 0, third_best_move = 0,
+    move;
+
+    int32_t move_score;
+
+    for (size_t i = 0; i < cur_movelist->num_moves; i++)
+    {
+        move = get_move(cur_movelist, i);
+        add_stone_copy(cur_board, cur_side, move);
+
+        // Run negascout for the first move with a full search interval.
+        if (i == 0)
+            move_score = -negascout(
+                cur_board + 1, cur_movelist + 1, !cur_side,
+                -beta, -alpha, depth - 1
+                );
+
+        // Run negascout for subsequent moves with an empty search interval. If
+        // the move score with an empty search interval is above the max-
+        // player's highest score and below the min-player's lowest score, rerun
+        // negascout with a full search interval.
+        else
+        {
+            move_score = -negascout(
+                cur_board + 1, cur_movelist + 1, !cur_side,
+                -alpha - 1, -alpha, depth - 1
+                );
+
+            if (move_score > alpha && move_score < beta)
+                move_score = -negascout(
+                    cur_board + 1, cur_movelist + 1, !cur_side,
+                    -beta, -move_score, depth - 1
+                    );
+        }
+
+        if (move_score > alpha)
+        {
+            alpha = move_score;
+            third_best_move = second_best_move;
+            second_best_move = best_move;
+            best_move = move;
 
             // If the lower bound has reached the upper bound, the remaining
             // moves can be ignored.
             if (alpha >= beta)
-                return alpha;
+                break;
         }
     }
+
+    if (alpha < beta && beta - alpha > 1)
+    {
+        entry->in_use = true;
+        entry->depth = depth;
+        entry->score = alpha;
+    }
+
+    entry->best_move = best_move;
+    entry->second_best_move = second_best_move;
+    entry->third_best_move = third_best_move;
 
     return alpha;
 }
 
-int32_t Player::heuristic(size_t stack_pos)
+const int32_t STONEIMB_MULT_CHANGE  =
+(STONEIMB_MULT_END - STONEIMB_MULT_START) / 60;
+const int32_t MOBILITY_MULT_CHANGE  = -MOBILITY_MULT_START  / 60;
+const int32_t PMOBILITY_MULT_CHANGE = -PMOBILITY_MULT_START / 60;
+const int32_t CORNERS_MULT_CHANGE   = -CORNERS_MULT_START   / 60;
+const int32_t PCORNERS_MULT_CHANGE  = -PCORNERS_MULT_START  / 60;
+const int32_t SAFETY_MULT_CHANGE    = -SAFETY_MULT_START    / 60;
+
+// Calculates the score for a given board.
+int32_t Player::heuristic(Board cur_board)
 {
-    Board board = board_stack + stack_pos;
+    uint64_t this_stones    = get_stones(cur_board, side),
+    other_stones            = get_stones(cur_board, !side);
 
-    uint8_t num_this_stones = num_stones(board, side),
-    num_other_stones = num_stones(board, !side);
+    uint8_t num_this_stones = num_ones(this_stones),
+    num_other_stones        = num_ones(other_stones),
+    turn                    = num_this_stones + num_other_stones - 4;
 
-    if (is_full(board))
-        return 1000 *
+    // On the last turn, the only part of the heuristic that matters is the
+    // stone imbalance, so all further calculations can be avoided.
+    if (turn == 60)
+        return STONEIMB_MULT_END *
         (num_this_stones - num_other_stones) /
         (num_this_stones + num_other_stones);
 
-    uint8_t num_this_moves = num_moves(board, side),
-    num_other_moves = num_moves(board, !side),
-    num_this_cat1 = num_cat1(board, side),
-    num_other_cat1 = num_cat1(board, !side),
-    num_this_cat2 = num_cat2(board, side),
-    num_other_cat2 = num_cat2(board, !side),
-    num_this_cat3 = num_cat3(board, side),
-    num_other_cat3 = num_cat3(board, !side);
+    uint64_t this_moves     = move_bitboard(this_stones, other_stones),
+    other_moves             = move_bitboard(other_stones, this_stones);
 
-    int32_t coin_parity, mobility, cat1, cat2, cat3;
+    uint8_t num_this_moves  = num_ones(this_moves),
+    num_other_moves         = num_ones(other_moves),
+    num_this_spaces         = num_spaces(this_stones, other_stones),
+    num_other_spaces        = num_spaces(other_stones, this_stones),
+    num_this_corners        = num_corners(this_stones),
+    num_other_corners       = num_corners(other_stones),
+    num_this_corner_moves   = num_corners(this_moves),
+    num_other_corner_moves  = num_corners(other_moves),
+    num_this_safe           = (num_other_moves) ?
+    num_safe(this_stones, other_stones, other_moves) : num_this_stones,
+    num_other_safe          = (num_this_moves) ?
+    num_safe(other_stones, this_stones, this_moves) : num_other_stones;
 
-    coin_parity = 100 *
-    (num_this_stones - num_other_stones) / (num_this_stones + num_other_stones);
+    // STONE IMBALANCE
+    // There is no need to check whether num_this_stones + num_other_stones is
+    // nonzero, since there will always be at least 4 stones on the board.
+    int32_t score = (STONEIMB_MULT_START + STONEIMB_MULT_CHANGE * turn) *
+    (num_this_stones - num_other_stones) /
+    (num_this_stones + num_other_stones);
 
-    if (num_this_moves + num_other_moves == 0)
-        mobility = 0;
-    else
-        mobility = 1000 *
-        (num_this_moves - num_other_moves) / (num_this_moves + num_other_moves);
+    // MOBILITY
+    if (num_this_moves + num_other_moves)
+        score += (MOBILITY_MULT_START + MOBILITY_MULT_CHANGE * turn) *
+        (num_this_moves - num_other_moves) /
+        (num_this_moves + num_other_moves);
 
-    if (num_this_cat1 + num_other_cat1 == 0)
-        cat1 = 0;
-    else
-        cat1 = 1000 *
-        (num_this_cat1 - num_other_cat1) / (num_this_cat1 + num_other_cat1);
+    // POTENTIAL MOBILITY
+    // There is no need to check whether num_other_spaces + num_this_spaces is
+    // nonzero, since there will only be 0 spaces on the board on the 60th turn.
+    score += (PMOBILITY_MULT_START + PMOBILITY_MULT_CHANGE * turn) *
+    (num_other_spaces - num_this_spaces) /
+    (num_other_spaces + num_this_spaces);
 
-    if (num_this_cat2 + num_other_cat2 == 0)
-        cat2 = 0;
-    else
-        cat2 = -500 *
-        (num_this_cat2 - num_other_cat2) / (num_this_cat2 + num_other_cat2);
+    // CORNERS
+    if (num_this_corners + num_other_corners)
+        score += (CORNERS_MULT_START + CORNERS_MULT_CHANGE * turn) *
+        (num_this_corners - num_other_corners) /
+        (num_this_corners + num_other_corners);
 
-    if (num_this_cat3 + num_other_cat3 == 0)
-        cat3 = 0;
-    else
-        cat3 = 250 *
-        (num_this_cat3 - num_other_cat3) / (num_this_cat3 + num_other_cat3);
+    // POTENTIAL CORNERS
+    if (num_this_corner_moves + num_other_corner_moves)
+        score += (PCORNERS_MULT_START + PCORNERS_MULT_CHANGE * turn) *
+        (num_this_corner_moves - num_other_corner_moves) /
+        (num_this_corner_moves + num_other_corner_moves);
 
-    return coin_parity + mobility + cat1 + cat2 + cat3;
+    // SAFETY
+    if (num_this_safe + num_other_safe)
+        score += (SAFETY_MULT_START + SAFETY_MULT_CHANGE * turn) *
+        (num_this_safe - num_other_safe) /
+        (num_this_safe + num_other_safe);
+
+    return score;
 }

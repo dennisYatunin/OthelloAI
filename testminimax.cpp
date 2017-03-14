@@ -19,18 +19,11 @@ int main(int argc, char *argv[]) {
         ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ',
         ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '
     };
-    Board *board = new Board();
-    board->setBoard(boardData);
 
-    // Initialize player as the white player, and set testing_minimax flag.
+    // Initialize player as the white player.
     Player *player = new Player(WHITE);
-    player->testingMinimax = true;
 
-
-    /**
-     * TODO: Write code to set your player's internal board state to the
-     * example state.
-     */
+    set_board(boardData, player->get_board());
 
     // Get player's move and check if it's right.
     Move *move = player->doMove(nullptr, 0);

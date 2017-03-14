@@ -2,10 +2,10 @@
 #define __COMMON_H__
 
 enum Side {
-    WHITE, BLACK
+    WHITE, BLACK, EMPTY
 };
 
-static inline Side operator!(Side s) {return static_cast<Side>(!static_cast<bool>(s));}
+static inline Side operator!(Side side) {return static_cast<Side>(BLACK - side);}
 
 class Move {
 
